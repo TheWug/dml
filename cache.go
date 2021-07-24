@@ -16,17 +16,19 @@ type namedFieldsCache struct {
 }
 
 // namedFieldsCache.Push adds a new field into a namedFieldsCache.
-func (c *namedFieldsCache) Push(name string, prefix []int, value int, scanner bool) {
+func (c *namedFieldsCache) Push(name string, prefix []int, value int, scanner bool) *namedFieldsCache {
 	c.Names = append(c.Names, name)
 	c.Fields = append(c.Fields, append(prefix[:len(prefix):len(prefix)], value))
 	c.IsScanner = append(c.IsScanner, scanner)
+	return c
 }
 
 // namedFieldsCache.Append adds all of the fields in one namedFieldsCache onto another.
-func (c *namedFieldsCache) Append(other namedFieldsCache) {
+func (c *namedFieldsCache) Append(other namedFieldsCache) *namedFieldsCache {
 	c.Names = append(c.Names, other.Names...)
 	c.Fields = append(c.Fields, other.Fields...)
 	c.IsScanner = append(c.IsScanner, other.IsScanner...)
+	return c
 }
 
 // namedFieldsCache.NamedFields renders a NamedFields object for the provided instance.

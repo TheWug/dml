@@ -89,15 +89,17 @@ type NamedFields struct {
 }
 
 // n.Append(other) appends NamedFields `other` object `n`.
-func (n *NamedFields) Append(other NamedFields) {
+func (n *NamedFields) Append(other NamedFields) *NamedFields {
 	n.Names  = append(n.Names,  other.Names...)
 	n.Fields = append(n.Fields, other.Fields...)
+	return n
 }
 
 // n.Push(name, field) adds a new field `field`, named `name`.
-func (n *NamedFields) Push(name string, field interface{}) {
+func (n *NamedFields) Push(name string, field interface{}) *NamedFields {
 	n.Names  = append(n.Names,  name)
 	n.Fields = append(n.Fields, field)
+	return n
 }
 // BuildNamedFields builds a NamedFields from the provided list of ScanInto objects.
 func BuildNamedFields(into []ScanInto) (NamedFields, error) {
