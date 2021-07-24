@@ -118,7 +118,7 @@ func buildNamedFieldsCacheForType(t reflect.Type, path []int) (output namedField
 	
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		if db_field, ok := field.Tag.Lookup("dml"); ok {
+		if db_field, ok := field.Tag.Lookup("dml"); len(field.PkgPath) == 0 && ok {
 			output.Push(db_field, path, i, field.Type.Implements(sqlScannerType))
 		} else if field.Anonymous && field.Type.Kind() == reflect.Struct {
 			sub_cache, sub_error := buildNamedFieldsCacheForType(field.Type, append(path, i))
