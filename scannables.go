@@ -11,6 +11,36 @@ type Scannable interface {
 	Scan(...interface{}) error
 }
 
+// an interface which describes sql.Rows
+type sqlRows interface {
+	Scan(...interface{}) error
+	ColumnTypes() ([]*sql.ColumnType, error)
+	Next() bool
+	Err() error
+}
+
+// sql.Rows.ColumnTypes() is stupid and unmockable, so fuck it. Stupid shim.
+type dumbAssFuckinAdapter struct {
+	sqlRows
+}
+
+// Shim ColumnNames() from ColumnTypes().
+func (piss dumbAssFuckinAdapter) ColumnNames() ([]string, error) {
+	columns, err := piss.sqlRows.ColumnTypes()
+	if err != nil { return nil, err }
+	names := []string{}
+	for _, c := range columns {
+		names = append(names, c.Name())
+	}
+	return names, nil
+}
+
+// Wrap an sql.Rows (or similar) in an adapter which converts ColumnTypes() to ColumnNames().
+// usage: rows, err := X(tx.Query(...))
+func X(rows sqlRows, err error) (IterableScannable, error) {
+	return dumbAssFuckinAdapter{sqlRows: rows}, err
+}
+
 // AdvancedScannable is Scannable, plus a ColumnTypes function (as provided by *sql.Rows) which allows
 // the caller to see how many columns are coming in and what their types and names are. Internally,
 // this information is used to construct a mapping of scannable fields to destination object fields.
