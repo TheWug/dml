@@ -104,6 +104,9 @@ func GetFieldsFrom(i ScanInto) (output NamedFields, err error) {
 	return cached.NamedFields(v)
 }
 
+// sqlScannerType is a helper variable for buildNamedFieldsCacheForType.
+var sqlScannerType = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
+
 // buildNamedFieldsCacheForType automatically reads information from the provided object, using field tags
 // in the struct definition to infer the desired field names. The structure is traversed flatly
 // looking for eligible fields (that is to say, sub-structs are not traversed into, unless they are
@@ -116,7 +119,7 @@ func buildNamedFieldsCacheForType(t reflect.Type, path []int) (output namedField
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if db_field, ok := field.Tag.Lookup("dml"); ok {
-			output.Push(db_field, path, i, field.Type.Implements(reflect.TypeOf(sql.Scanner(nil))))
+			output.Push(db_field, path, i, field.Type.Implements(sqlScannerType))
 		} else if field.Anonymous && field.Type.Kind() == reflect.Struct {
 			sub_cache, sub_error := buildNamedFieldsCacheForType(field.Type, append(path, i))
 			if sub_error != nil { return namedFieldsCache{}, fmt.Errorf("error examining field %s: %w", field.Name, sub_error) }
