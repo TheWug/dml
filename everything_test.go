@@ -114,8 +114,8 @@ func Test_buildNamedFieldsCacheForType(t *testing.T) {
 	v_type := v_raw.Type()
 	tagged_fields := 5
 
-	cache, err := buildNamedFieldsCacheForType(v_type, nil)
-	if err != nil { t.Errorf("Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected nil", err) }
+	cache, err := buildFieldCacheEntryForType(v_type, nil)
+	if err != nil { t.Errorf("Unexpected return value (buildFieldCacheEntryForType()): got %v, expected nil", err) }
 	if len(cache.Names) != tagged_fields { t.Errorf("Unexpected state (cache.Names): wrong length, got %d, expected %d", len(cache.Names), tagged_fields) }
 	if len(cache.Fields) != tagged_fields { t.Errorf("Unexpected state (cache.Fields): wrong length, got %d, expected %d", len(cache.Fields), tagged_fields) }
 	if len(cache.IsScanner) != tagged_fields { t.Errorf("Unexpected state (cache.IsScanner): wrong length, got %d, expected %d", len(cache.IsScanner), tagged_fields) }
@@ -128,7 +128,7 @@ func Test_buildNamedFieldsCacheForType(t *testing.T) {
 		}
 	}
 
-	cache, err = buildNamedFieldsCacheForType(reflect.TypeOf(int(1)), nil)
+	cache, err = buildFieldCacheEntryForType(reflect.TypeOf(int(1)), nil)
 	if err == nil || !strings.Contains(err.Error(), "non-struct type") { t.Errorf("Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected 'non-struct type' error", err) }
 }
 
@@ -147,7 +147,7 @@ func Test_GetFieldsFrom(t *testing.T) {
 
 	if cached, ok := fieldsCache[y_type]; ok { t.Errorf("Expected no cached value, but got one: %+v", cached) }
 	_, err := GetFieldsFrom(y)
-	if err == nil || !strings.Contains(err.Error(), "not addressable struct") { t.Errorf("Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected 'not addressable' error", err) }
+	if err == nil || !strings.Contains(err.Error(), "incompatible object type") { t.Errorf("Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected 'not addressable' error", err) }
 	if cached, ok := fieldsCache[y_type]; ok { t.Errorf("Expected no cached value, but got one: %+v", cached) }
 
 	fields, err := GetFieldsFrom(&y)
@@ -195,11 +195,12 @@ func Test_BuildNamedFields(t *testing.T) {
 		result NamedFields
 		errmatch string
 	}{
-		"single":       {[]ScanInto{&y},     fields_y,      ""},
-		"multi":        {[]ScanInto{&y, &z}, fields_yz,     ""},
-		"non-struct":   {[]ScanInto{&x},     NamedFields{}, "not addressable struct"},
-		"non-struct-2": {[]ScanInto{&y, &x}, NamedFields{}, "not addressable struct"},
-		"empty":        {[]ScanInto{},       NamedFields{}, "empty output object list"},
+		"single":       {[]ScanInto{&y},      fields_y,      ""},
+		"multi":        {[]ScanInto{&y, &z},  fields_yz,     ""},
+		"non-struct":   {[]ScanInto{&x},      NamedFields{}, "incompatible object"},
+		"non-struct-2": {[]ScanInto{&y, &x},  NamedFields{}, "incompatible object"},
+		"non-struct-3": {[]ScanInto{&y, nil}, NamedFields{}, "incompatible object"},
+		"empty":        {[]ScanInto{},        NamedFields{}, "empty output object list"},
 	}
 
 	for k, v := range testcases {
