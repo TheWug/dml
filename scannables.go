@@ -17,6 +17,7 @@ type sqlRows interface {
 	ColumnTypes() ([]*sql.ColumnType, error)
 	Next() bool
 	Err() error
+	Close() error
 }
 
 // sql.Rows.ColumnTypes() is stupid and unmockable, so fuck it. Stupid shim.
@@ -58,6 +59,7 @@ type IterableScannable interface {
 	
 	Next() bool
 	Err() error
+	Close() error
 }
 
 // scannableWrapper is a shim used to make *sql.Row universally compatible with these functions. The
@@ -79,6 +81,11 @@ func (s *scannableWrapper) Next() bool {
 
 // scannableWrapper.Err() always returns nil, reflecting sql.Row's philosophy of "raise all errors at scan time"
 func (s *scannableWrapper) Err() error {
+	return nil
+}
+
+// scannableWrapper.Err() always returns nil, reflecting sql.Row's philosophy of "raise all errors at scan time"
+func (s *scannableWrapper) Close() error {
 	return nil
 }
 
