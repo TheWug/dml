@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 )
 
 // namedFieldsCache is an internal type representing an instance-agnostic set of fields.
@@ -51,6 +52,9 @@ func (c *namedFieldsCache) NamedFields(v reflect.Value) (n NamedFields, err erro
 // fieldCaches is an internal cache of field representations, optimized for rendering to NamedFields objects.
 var fieldsCache = make(map[reflect.Type]namedFieldsCache)
 
+// fieldsCacheLock is a mutex which protects fieldsCache from concurrent read/write.
+var fieldsCacheLock sync.RWMutex
+
 // GetFields populates fieldsCache with an appropriate entry if necessary, and then uses the cached value
 // to build a suitable NamedFields object for the given input.
 func GetFieldsFrom(i ScanInto) (output NamedFields, err error) {
@@ -81,11 +85,18 @@ func GetFieldsFrom(i ScanInto) (output NamedFields, err error) {
 	
 	// lookup from, and if necessary populate, fieldsCache for this type
 	t := v.Type()
+	fieldsCacheLock.RLock()
 	cached, ok := fieldsCache[t]
+	fieldsCacheLock.RUnlock()
 	if !ok {
-		cached, err = buildNamedFieldsCacheForType(t, nil)
-		if err != nil { return NamedFields{}, err }
-		fieldsCache[t] = cached
+		fieldsCacheLock.Lock()
+		cached, ok = fieldsCache[t]
+		if !ok {
+			cached, err = buildNamedFieldsCacheForType(t, nil)
+			if err != nil { return NamedFields{}, err }
+			fieldsCache[t] = cached
+		}
+		fieldsCacheLock.Unlock()
 	}
 	
 	return cached.NamedFields(v)
