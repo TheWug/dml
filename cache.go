@@ -45,7 +45,7 @@ func (c *namedFieldsCache) NamedFields(v reflect.Value) (n NamedFields, err erro
 		if !c.IsScanner[i] {
 			f = f.Addr()
 		}
-		n.Push(c.Names[i], f)
+		n.Push(c.Names[i], f.Interface())
 	}
 	
 	return n, nil
