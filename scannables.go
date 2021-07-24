@@ -17,7 +17,7 @@ type Scannable interface {
 type AdvancedScannable interface {
 	Scannable
 	
-	ColumnTypes() ([]*sql.ColumnType, error)
+	ColumnNames() ([]string, error)
 }
 
 // IterableScannable is AdvancedScannable, plus Next and Err. With these additional methods, you can
@@ -54,7 +54,7 @@ func (s *scannableWrapper) Err() error {
 
 // scannableWrapper.ColumnTypes() returns nil and no error. Callers should interpret this to mean
 // no column name checks can be done, so just blindly pass whatever you have to scan.
-func (s *scannableWrapper) ColumnTypes() ([]*sql.ColumnType, error) {
+func (s *scannableWrapper) ColumnNames() ([]string, error) {
 	return nil, nil
 }
 

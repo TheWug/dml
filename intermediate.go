@@ -44,19 +44,19 @@ func (n *iln) yoink() (*int, *iln) {
 
 // BuildMap builds a ScanMap from the provided scannable and field list.
 func BuildMap(adv AdvancedScannable, fields NamedFields) (ScanMap, error) {
-	columns, err := adv.ColumnTypes()
+	names, err := adv.ColumnNames()
 	if err != nil { return nil, err }
 	
 	// special case: if columns is nil, that probably means adv is a scannableWrapper,
 	// so we want to return the special output value nil to indicate "skip the mapping step".
-	if columns == nil { return nil, nil }
+	if names == nil { return nil, nil }
 	
-	output := make(ScanMap, len(columns))
-	for i := range columns { output[i] = -1 }
+	output := make(ScanMap, len(names))
+	for i := range names { output[i] = -1 }
 	
-	if (len(columns) - 5) * (len(fields.Names) - 5) > 100 {
+	if (len(names) - 5) * (len(fields.Names) - 5) > 100 {
 		columnsByName := make(map[string]*iln)
-		for i, c := range columns { columnsByName[c.Name()] = columnsByName[c.Name()].add(i) }
+		for i, n := range names { columnsByName[n] = columnsByName[n].add(i) }
 		for i, n := range fields.Names {
 			var x *int
 			x, columnsByName[n] = columnsByName[n].yoink()
@@ -65,9 +65,9 @@ func BuildMap(adv AdvancedScannable, fields NamedFields) (ScanMap, error) {
 	} else {
 		MainLoop:
 		for i, n := range fields.Names {
-			for j, c := range columns {
+			for j, n2 := range names {
 				if output[j] != -1 { continue }
-				if n == c.Name() {
+				if n == n2 {
 					output[j] = i
 					continue MainLoop
 				}
