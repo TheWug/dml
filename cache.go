@@ -114,6 +114,7 @@ var sqlScannerType = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
 // buildFieldsCacheForType returns an object-agnostic representation which can be used to quickly
 // compute the actual NamedFields list for any given instance of the provided type.
 func buildNamedFieldsCacheForType(t reflect.Type, path []int) (output namedFieldsCache, err error) {
+	defer func() { if r := recover(); r != nil { err = fmt.Errorf("%v", r) } }()
 	if t.Kind() != reflect.Struct { return namedFieldsCache{}, errors.New("tried to analyze field structure of non-struct type") }
 	
 	for i := 0; i < t.NumField(); i++ {
