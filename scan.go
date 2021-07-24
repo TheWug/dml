@@ -56,17 +56,19 @@ func ScanWithMap(s Scannable, m ScanMap, into ...ScanInto) error {
 // with incompatible types being passed to Scannable.Scan will result in errors which will
 // propagate up to the caller.
 func ScanWithMappedFields(s Scannable, m ScanMap, fields NamedFields) error {
+	if len(fields.Fields) == 0 { return errors.New("cannot scan into empty list of fields") }
 	field_list := fields.Fields
 	if m != nil {
-		field_list = make([]interface{}, len(m))
-		for idx_from, idx_into := range m {
+		field_list = make([]interface{}, 0, len(m))
+		for _, idx_into := range m {
 			if idx_into == -1 {
-				field_list[idx_from] = noopScanner{}
+				field_list = append(field_list, noopScanner{})
 			} else {
-				field_list[idx_from] = fields.Fields[idx_into]
+				field_list = append(field_list, fields.Fields[idx_into])
 			}
 		}
 	}
+	// this seemingly identical error condition is deliberately included twice.
 	if len(field_list) == 0 { return errors.New("cannot scan into empty list of fields") }
 	return s.Scan(field_list...)
 }
