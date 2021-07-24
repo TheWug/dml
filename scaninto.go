@@ -16,6 +16,9 @@ package dml
 // you to marshal data from a single row into several objects of the same type.
 type ScanInto interface{}
 
+// Same deal as above, except this one expects a typed array.
+type ScanIntoArray interface{}
+
 // There also exists the following interface, which allows you to provide your own GetFields implementation
 // for a struct.  You can use this to provide field wrappers, multi-level field population, and other more
 // complex features in an explicit way.
