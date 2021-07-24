@@ -36,8 +36,8 @@ func (c *namedFieldsCache) Append(other namedFieldsCache) *namedFieldsCache {
 // the type for which this namedFieldsCache was generated, most likely due to tampering.
 func (c *namedFieldsCache) NamedFields(v reflect.Value) (n NamedFields, err error) {
 	n = NamedFields{
-		Names: make([]string, len(c.Names)),
-		Fields: make([]interface{}, len(c.Names)),
+		Names: make([]string, 0, len(c.Names)),
+		Fields: make([]interface{}, 0, len(c.Names)),
 	}
 	
 	for i := range c.Names {
