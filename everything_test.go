@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 	"strings"
+	"time"
 )
 
 // Notes:
@@ -166,30 +167,35 @@ func Test_GetFieldsFrom(t *testing.T) {
 	y := Y{E1: E1{Test: "value3"}, E2: E2{Test: "value4"}, Test1: "value1", Test2: "value2"}
 	y_type := reflect.TypeOf(y)
 
-	if cached, ok := fieldsCache[y_type]; ok { t.Errorf("Expected no cached value, but got one: %+v", cached) }
+	if cached, ok := fieldsCache[y_type]; ok { t.Errorf("1: Expected no cached value, but got one: %+v", cached) }
 	_, err := GetFieldsFrom(y)
-	if err == nil || !strings.Contains(err.Error(), "incompatible object type") { t.Errorf("Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected 'not addressable' error", err) }
-	if cached, ok := fieldsCache[y_type]; ok { t.Errorf("Expected no cached value, but got one: %+v", cached) }
+	if err == nil || !strings.Contains(err.Error(), "incompatible object type") { t.Errorf("2: Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected 'not addressable' error", err) }
+	if cached, ok := fieldsCache[y_type]; ok { t.Errorf("3: Expected no cached value, but got one: %+v", cached) }
 
 	fields, err := GetFieldsFrom(&y)
-	if err != nil { t.Errorf("Unexpected return value (GetFieldsFrom): got %v, expected nil", err) }
-	if _, ok := fieldsCache[y_type]; !ok { t.Errorf("Expected cached value, but got empty value instead!") }
+	if err != nil { t.Errorf("4: Unexpected return value (GetFieldsFrom): got %v, expected nil", err) }
+	if _, ok := fieldsCache[y_type]; !ok { t.Errorf("5: Expected cached value, but got empty value instead!") }
 	fields_again, err := GetFieldsFrom(&y)
-	if err != nil { t.Errorf("Unexpected return value (GetFieldsFrom): got %v, expected nil", err) }
+	if err != nil { t.Errorf("6: Unexpected return value (GetFieldsFrom): got %v, expected nil", err) }
 
-	if !reflect.DeepEqual(fields, fields_again) { t.Errorf("Unexpected return values (GetFieldsFrom): %+v and %+v should be equal", fields, fields_again) }
+	if !reflect.DeepEqual(fields, fields_again) { t.Errorf("7: Unexpected return values (GetFieldsFrom): %+v and %+v should be equal", fields, fields_again) }
 
 	manually_constructed := NamedFields{
 		Names: []string{"value3", "value3", "value4", "value1", "value2"},
 		Fields: []interface{}{&y.E1.Test, &y.E2.E1.Test, &y.E2.Test, &y.Test1, &y.Test2},
 	}
-	if !reflect.DeepEqual(fields, manually_constructed) { t.Errorf("Unexpected return values (GetFieldsFrom): got %+v, expected %+v", fields, manually_constructed) }
+	if !reflect.DeepEqual(fields, manually_constructed) { t.Errorf("8: Unexpected return values (GetFieldsFrom): got %+v, expected %+v", fields, manually_constructed) }
 
 	z := Z{E2: E2{Test: "testing1"}, private: "testing2"}
+	manually_constructed = NamedFields{
+		Names: []string{"value3", "value3", "value4", "value1", "value2"},
+		Fields: []interface{}{&z.E1.Test, &z.E2.E1.Test, &z.E2.Test, &z.Test1, &z.Test2},
+	}
 	fields, err = GetFieldsFrom(&z)
-	if err != nil { t.Errorf("Unexpected return value (GetFieldsFrom): got %v, expected nil", err) }
-	manually_constructed, err = z.GetFields()
-	if !reflect.DeepEqual(fields, manually_constructed) { t.Errorf("Unexpected return values (GetFieldsFrom): %+v and %+v should be equal", fields, manually_constructed) }
+	if err != nil { t.Errorf("9: Unexpected return value (GetFieldsFrom): got %v, expected nil", err) }
+	next, err := z.GetFields()
+	manually_constructed.Append(next)
+	if !reflect.DeepEqual(fields, manually_constructed) { t.Errorf("10: Unexpected return values (GetFieldsFrom): %+v and %+v should be equal", fields, manually_constructed) }
 }
 
 type Y1 X1
@@ -310,11 +316,13 @@ type X2 struct {
 }
 
 type X3 X2
+func (x *X3) NoDefaults() {}
 func (x *X3) GetFields() (NamedFields, error) {
 	return NamedFields{}, nil
 }
 
 type X4 X2
+func (x *X4) NoDefaults() {}
 func (x *X4) GetFields() (NamedFields, error) {
 	return NamedFields{}, errors.New("error when listing fields")
 }
@@ -605,6 +613,24 @@ func Test_QuickScan(t *testing.T) {
 			if v.err != "" && (err == nil || !strings.Contains(err.Error(), v.err)) { t.Errorf("Unexpected return values (Scan): got unexpected error %v, looking for %s", err, v.err) }
 			if v.err == "" && err != nil { t.Errorf("Unexpected return values (Scan): got unexpected error %v, looking for nil", err) }
 			if !reflect.DeepEqual(v.in, v.out) { t.Errorf("Unexpected operation result (Scan): got %v, expected %v", p(v.in), p(v.out)) }
+		})
+	}
+}
+
+func Test_zeroValueForSliceContents(t *testing.T) {
+	testcases := map[string]struct{
+		slice reflect.Value
+		expected interface{}
+	}{
+		"int": {reflect.ValueOf([]int{}), int(0)},
+		"string": {reflect.ValueOf([]string{"hi", "hello"}), string("")},
+		"time": {reflect.ValueOf([]time.Time{}), time.Time{}},
+	}
+	
+	for k, v := range testcases {
+		t.Run(k, func(t *testing.T) {
+			out := zeroValueForSliceContents(v.slice)
+			if out != v.expected { t.Errorf("Unexpected return value (zeroValueForSliceContents): got %v, expected %v", out, v.expected) }
 		})
 	}
 }
