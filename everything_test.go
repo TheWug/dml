@@ -287,7 +287,9 @@ func Test_postScan(t *testing.T) {
 type RowMock struct {
 	columns []string
 	values []string
+	max int
 	colerr error
+	nexterr error
 }
 
 func (r *RowMock) Scan(out ...interface{}) error {
@@ -307,6 +309,22 @@ func (r *RowMock) Scan(out ...interface{}) error {
 
 func (r *RowMock) ColumnNames() ([]string, error) {
 	return r.columns, r.colerr
+}
+
+func (r *RowMock) Next() bool {
+	r.max--
+	return r.max >= 0
+}
+
+func (r *RowMock) Close() error {
+	return nil
+}
+
+func (r *RowMock) Err() error {
+	if r.max < 0 {
+		return r.nexterr
+	}
+	return nil
 }
 
 type X2 struct {
@@ -617,7 +635,7 @@ func Test_QuickScan(t *testing.T) {
 	}
 }
 
-func Test_zeroValueForSliceContents(t *testing.T) {
+func Test_newValueForSliceContents(t *testing.T) {
 	testcases := map[string]struct{
 		slice reflect.Value
 		expected interface{}
@@ -629,8 +647,107 @@ func Test_zeroValueForSliceContents(t *testing.T) {
 	
 	for k, v := range testcases {
 		t.Run(k, func(t *testing.T) {
-			out := zeroValueForSliceContents(v.slice)
-			if out != v.expected { t.Errorf("Unexpected return value (zeroValueForSliceContents): got %v, expected %v", out, v.expected) }
+			out := newValueForSliceContents(v.slice)
+			if reflect.Indirect(reflect.ValueOf(out)).Interface() != v.expected { t.Errorf("Unexpected return value (zeroValueForSliceContents): got %v, expected %v", out, v.expected) }
+		})
+	}
+}
+
+func Test_getSlices(t *testing.T) {
+	testcases := map[string]struct{
+		inputs []ScanIntoArray
+		err string
+	}{
+		"empty":     {[]ScanIntoArray{}, ""},
+		"normal":    {[]ScanIntoArray{&[]string{"1", "2", "3"}, &[]int{1,2,3}}, ""},
+		"non-slice": {[]ScanIntoArray{&[]string{"1", "2", "3"}, 5}, "pointers to slice"},
+	}
+	
+	for k, v := range testcases {
+		t.Run(k, func(t *testing.T) {
+			wants := make([]reflect.Value, 0, len(v.inputs))
+			for i := range v.inputs {
+				wants = append(wants, reflect.Indirect(reflect.ValueOf(v.inputs[i])))
+			}
+			
+			out, err := getSlices(v.inputs)
+			if err == nil && !reflect.DeepEqual(out, wants) && len(out) != 0 && len(wants) != 0 { t.Errorf("Unexpected output (getSlices): %v should equal %v", out, wants) }
+			if err == nil && v.err != "" || err != nil && v.err == "" || err != nil && !strings.Contains(err.Error(), v.err) {
+				t.Errorf("Unexpected return value (getSlices): %v should match %v", v.err, err)
+			}
+		})
+	}
+}
+
+func Test_renderInto(t *testing.T) {
+	testcases := map[string]struct{
+		inputs []interface{}
+		assigns []interface{}
+		compare []interface{}
+		result []interface{}
+	}{
+		"empty":    {[]interface{}{}, []interface{}{}, []interface{}{}, []interface{}{}},
+		"normal":   {[]interface{}{[]string{"s1", "s2", "s3"}, []int{1,2,3}}, []interface{}{"value", 10}, []interface{}{"s3", 3}, []interface{}{[]string{"s1", "s2", "value"}, []int{1,2,10}}},
+	}
+
+	for k, v := range testcases {
+		t.Run(k, func(t *testing.T) {
+			var arrays_values []reflect.Value
+			for i := range v.inputs {
+				arrays_values = append(arrays_values, reflect.ValueOf(v.inputs[i]))
+			}
+			
+			out := renderInto(arrays_values)
+			
+			var outputs_values []interface{}
+			for i := range v.compare {
+				outputs_values = append(outputs_values, out[i].Interface())
+			}
+			
+			if !reflect.DeepEqual(v.compare, outputs_values) && len(v.compare) != 0 && len(outputs_values) != 0 { t.Errorf("Unexpected return value (renderInto): got %v, wanted %v", v.compare, outputs_values) }
+			
+			for i := range out {
+				out[i].Set(reflect.ValueOf(v.assigns[i]))
+			}
+			
+			if !reflect.DeepEqual(v.inputs, v.result) { t.Errorf("Unexpected result state after assignment (renderInto): got %v, wanted %v", v.inputs, v.result) }
+		})
+	}
+}
+
+func Test_ScanArray(t *testing.T) {
+	testcases := map[string]struct{
+		rows *RowMock
+		obj []interface{}
+		arrays []ScanIntoArray
+		err string
+	}{
+		"empty":    {rows: &RowMock{columns: []string{"field_2", "field_1", "field_3"}, values:[]string{"a", "2", "d"}, max: 5}, obj: []interface{}{X2{"2", "a", "d"}}, arrays: []ScanIntoArray{&[]X2{}}},
+	}
+
+	for k, v := range testcases {
+		t.Run(k, func(t *testing.T) {
+			length := v.rows.max
+			rlen := 0
+			
+			err := ScanArray(v.rows, v.arrays...)
+			
+			fail := false
+			for i := range v.arrays {
+				x := reflect.Indirect(reflect.ValueOf(v.arrays[i]))
+				rlen = x.Len()
+				for j := 0; j < x.Len(); j++ {
+					if v.obj[i] != x.Index(i).Interface() { fail = true }
+				}
+			}
+			
+			if err != nil && v.err == "" || err == nil && v.err != "" || err != nil && !strings.Contains(err.Error(), v.err) {
+				t.Errorf("Unexpected return value (ScanArray): %v doesnt match %v", err, v.err)
+			}
+			
+			if fail || length != rlen {
+				t.Errorf("Bad output: Expected values %v, array %v", v.obj, v.arrays)
+			}
 		})
 	}
 }

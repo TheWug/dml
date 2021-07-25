@@ -5,21 +5,21 @@ import (
 	"reflect"
 )
 
-// for any slice []T, returns the zero value of type T.
-func zeroValueForSliceContents(slice reflect.Value) interface{} {
-	return reflect.Zero(slice.Type().Elem()).Interface()
+// for any slice []T, returns the address of a newly allocated T.
+func newValueForSliceContents(slice reflect.Value) interface{} {
+	return reflect.New(slice.Type().Elem()).Interface()
 }
 
 // for any array of pointers to slice *[]T, return an array of slices []T.
 func getSlices(into []ScanIntoArray) (out []reflect.Value, err error) {
 	for i := range into {
-		ps := reflect.ValueOf(i)
+		ps := reflect.ValueOf(into[i])
 		if ps.Kind() != reflect.Ptr {
-			return nil, errors.New("elements must be a pointers to slices")
+			return nil, errors.New("elements must be pointers to slice")
 		}
 		ps = ps.Elem()
 		if ps.Kind() != reflect.Slice {
-			return nil, errors.New("argument must be a pointer to slice")
+			return nil, errors.New("elements must be pointers to slice")
 		}
 		out = append(out, ps)
 	}
@@ -27,6 +27,7 @@ func getSlices(into []ScanIntoArray) (out []reflect.Value, err error) {
 	return out, nil
 }
 
+// grab the values of the ends of the arrays
 func renderInto(slices []reflect.Value) (out []reflect.Value) {
 	for _, s := range slices {
 		out = append(out, s.Index(s.Len() - 1))
@@ -40,8 +41,9 @@ func ScanArray(it IterableScannable, into ...ScanIntoArray) error {
 	if err != nil { return err }
 
 	zeros := make([]ScanInto, len(slices))
+
 	for i := range slices {
-		zeros[i] = zeroValueForSliceContents(slices[i])
+		zeros[i] = newValueForSliceContents(slices[i])
 	}
 
 	values, types, err := internalNormalizeObjects(zeros, true)
@@ -67,7 +69,7 @@ func ScanArray(it IterableScannable, into ...ScanIntoArray) error {
 	for it.Next() {
 		// first, append the zero value to each array
 		for i, s := range slices {
-			s.Set(reflect.Append(s, reflect.ValueOf(zeros[i])))
+			s.Set(reflect.Append(s, reflect.Indirect(reflect.ValueOf(zeros[i]))))
 		}
 
 		if err := it.Err(); err != nil { return err }
