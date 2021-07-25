@@ -45,7 +45,7 @@ func internalNormalizeObjects(into []ScanInto, ignoreUnsettable bool) (out_vals 
 		}
 
 		for v.Kind() != reflect.Invalid  {
-			if v.Type().Implements(getFieldsType) {
+			if reflect.PtrTo(v.Type()).Implements(getFieldsType) {
 				out_vals = append(out_vals, v)
 				out_types = append(out_types, v.Type())
 				continue Outer
@@ -105,7 +105,8 @@ func RenderNamedFields(nfm []NamedFieldsMaker, values []reflect.Value) (output N
 // an SQL query is an inherently one dimensional structure). Unexported fields are ignored.
 func buildFieldCacheEntryForType(t reflect.Type, path []int) (output fieldCacheEntry, err error) {
 	defer func() { if r := recover(); r != nil { err = fmt.Errorf("%v", r) } }()
-	if t.Kind() != reflect.Struct { return fieldCacheEntry{}, errors.New("tried to analyze field structure of non-struct type") }
+	if t.Kind() == reflect.Invalid { return fieldCacheEntry{}, errors.New("nil value is not acceptable") }
+	if t.Kind() != reflect.Struct || reflect.PtrTo(t).Implements(noDefaultsType) { return fieldCacheEntry{}, nil }
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -124,12 +125,6 @@ func buildFieldCacheEntryForType(t reflect.Type, path []int) (output fieldCacheE
 // getCachedFieldsFor fetches a NamedFieldsMaker for this type, which is either a cached representation
 // of the relevant fields of the type, or a passthru shim which handles GetFields implementors.
 func getFieldCachesFor(t reflect.Type) (output NamedFieldsMaker, err error) {
-	// if i implements GetFields, call its GetFields function instead of doing a manual examination.
-
-	if t.Implements(getFieldsType){
-		return namedFieldsFromGetFields{}, nil
-	}
-
 	// unwrap pointer/interface indirections
 	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface {
 		t = t.Elem()
@@ -203,9 +198,15 @@ func (c *fieldCacheEntry) Append(other fieldCacheEntry) *fieldCacheEntry {
 // normal operation should never produce an error. Errors can happen only if v does not match
 // the type for which this fieldCacheEntry was generated, most likely due to tampering.
 func (c fieldCacheEntry) NamedFields(v reflect.Value) (n NamedFields, err error) {
+	var gf NamedFields
+	if v, ok := v.Addr().Interface().(GetFields); ok {
+		gf, err = v.GetFields()
+		if err != nil { return n, err }
+	}
+
 	n = NamedFields{
-		Names: make([]string, 0, len(c.Names)),
-		Fields: make([]interface{}, 0, len(c.Names)),
+		Names: make([]string, 0, len(c.Names) + len(gf.Names)),
+		Fields: make([]interface{}, 0, len(c.Names) + len(gf.Names)),
 	}
 
 	for i := range c.Names {
@@ -215,6 +216,8 @@ func (c fieldCacheEntry) NamedFields(v reflect.Value) (n NamedFields, err error)
 		}
 		n.Push(c.Names[i], f.Interface())
 	}
+	
+	n.Append(gf)
 
 	return n, nil
 }

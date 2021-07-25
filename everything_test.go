@@ -107,6 +107,15 @@ type X1 struct {
 	private string `dml:"value5"`
 }
 
+type X0 X1
+func (x *X0) NoDefaults() {}
+func (x *X0) GetFields() (NamedFields, error) {
+	return NamedFields{
+		Names: []string{"private"},
+		Fields: []interface{}{&x.private},
+	}, nil
+}
+
 func Test_buildNamedFieldsCacheForType(t *testing.T) {
 	x := X1{E1: E1{Test: "value3"}, E2: E2{E1: E1{Test: "value3"}, Test: "value4"}, Test1: "value1", Test2: "value2", private: "value4"}
 	v_ptr := reflect.ValueOf(&x)
@@ -129,7 +138,19 @@ func Test_buildNamedFieldsCacheForType(t *testing.T) {
 	}
 
 	cache, err = buildFieldCacheEntryForType(reflect.TypeOf(int(1)), nil)
-	if err == nil || !strings.Contains(err.Error(), "non-struct type") { t.Errorf("Unexpected return value (buildNamedFieldsCacheForType()): got %v, expected 'non-struct type' error", err) }
+	if err != nil || len(cache.Names) != 0 { t.Errorf("Unexpected state: got %v, %v; wanted %v, %v", err, cache, error(nil), fieldCacheEntry{}) }
+	
+	x0 := X0(x)
+	v_ptr = reflect.ValueOf(&x0)
+	v_raw = v_ptr.Elem()
+	v_type = v_raw.Type()
+	tagged_fields = 0
+	
+	cache, err = buildFieldCacheEntryForType(v_type, nil)
+	if err != nil { t.Errorf("Unexpected return value (buildFieldCacheEntryForType()): got %v, expected nil", err) }
+	if len(cache.Names) != tagged_fields { t.Errorf("Unexpected state (cache.Names): wrong length, got %d, expected %d", len(cache.Names), tagged_fields) }
+	if len(cache.Fields) != tagged_fields { t.Errorf("Unexpected state (cache.Fields): wrong length, got %d, expected %d", len(cache.Fields), tagged_fields) }
+	if len(cache.IsScanner) != tagged_fields { t.Errorf("Unexpected state (cache.IsScanner): wrong length, got %d, expected %d", len(cache.IsScanner), tagged_fields) }
 }
 
 type Y X1
@@ -181,10 +202,12 @@ func (z *Z1) GetFields() (NamedFields, error) {
 }
 
 func Test_BuildNamedFields(t *testing.T) {
+	w := X0{}
 	x := 10
 	y := Y1{E1: E1{Test: "value3"}, E2: E2{Test: "value4"}, Test1: "value1", Test2: "value2"}
 	z := Z1{E1: E1{Test: "testing1"}, private: "testing2"}
 
+	fields_w, _ := w.GetFields()
 	fields_y, _ := GetFieldsFrom(&y)
 	fields_z, _ := GetFieldsFrom(&z)
 	fields_yz, _ := GetFieldsFrom(&y)
@@ -201,6 +224,7 @@ func Test_BuildNamedFields(t *testing.T) {
 		"non-struct-2": {[]ScanInto{&y, &x},  NamedFields{}, "incompatible object"},
 		"non-struct-3": {[]ScanInto{&y, nil}, NamedFields{}, "incompatible object"},
 		"empty":        {[]ScanInto{},        NamedFields{}, "empty output object list"},
+		"no-default":   {[]ScanInto{&w},      fields_w,      ""},
 	}
 
 	for k, v := range testcases {
