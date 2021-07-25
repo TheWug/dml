@@ -12,6 +12,7 @@ import (
 
 var sqlScannerType = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
 var getFieldsType = reflect.TypeOf((*GetFields)(nil)).Elem()
+var noDefaultsType = reflect.TypeOf((*NoDefaults)(nil)).Elem()
 
 // GetFieldsFrom populates fieldsCache with an appropriate entry if necessary, and then uses the cached value
 // to build a suitable NamedFields object for the given input.
@@ -165,7 +166,7 @@ type NamedFieldsMaker interface {
 // namedFieldsFromGetFields is a thin shim which facilitates building a NamedFields from a GetFields implementor.
 type namedFieldsFromGetFields struct {}
 
-// NamedFields passes GetFields to its argument and returns the result. Its argument should implement GetFields.
+// NamedFields calls GetFields on its argument and returns the result. Its argument should implement GetFields.
 func (n namedFieldsFromGetFields) NamedFields(v reflect.Value) (NamedFields, error) {
 	if g, ok := v.Interface().(GetFields); ok && g != nil {
 		return g.GetFields()
